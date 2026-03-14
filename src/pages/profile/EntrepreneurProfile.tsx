@@ -1,355 +1,193 @@
-import React from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { MessageCircle, Users, Calendar, Building2, MapPin, UserCircle, FileText, DollarSign, Send } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Avatar } from '../../components/ui/Avatar';
-import { Button } from '../../components/ui/Button';
-import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { useAuth } from '../../context/AuthContext';
-import { findUserById } from '../../data/users';
-import { createCollaborationRequest, getRequestsFromInvestor } from '../../data/collaborationRequests';
+import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { MapPin, Calendar, Users, DollarSign, Building, ArrowLeft, MessageCircle } from 'lucide-react';
+import { userAPI } from '../../services/api';
 import { Entrepreneur } from '../../types';
+import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 
 export const EntrepreneurProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
-  
-  // Fetch entrepreneur data
-  const entrepreneur = findUserById(id || '') as Entrepreneur | null;
-  
-  if (!entrepreneur || entrepreneur.role !== 'entrepreneur') {
+  const [entrepreneur, setEntrepreneur] = useState<Entrepreneur | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchEntrepreneur = async () => {
+      if (!id) return;
+
+      try {
+        setLoading(true);
+        const response = await userAPI.getUserById(id);
+        
+        if (response.data.data.role !== 'entrepreneur') {
+          toast.error('This is not an entrepreneur profile');
+          navigate('/entrepreneurs');
+          return;
+        }
+
+        setEntrepreneur(response.data.data as Entrepreneur);
+      } catch (error: any) {
+        console.error('Failed to fetch entrepreneur:', error);
+        toast.error('Entrepreneur not found');
+        navigate('/entrepreneurs');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEntrepreneur();
+  }, [id, navigate]);
+
+  if (loading) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-gray-900">Entrepreneur not found</h2>
-        <p className="text-gray-600 mt-2">The entrepreneur profile you're looking for doesn't exist or has been removed.</p>
-        <Link to="/dashboard/investor">
-          <Button variant="outline" className="mt-4">Back to Dashboard</Button>
-        </Link>
-      </div>
+      <DashboardLayout>
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="text-gray-600 mt-4">Loading profile...</p>
+        </div>
+      </DashboardLayout>
     );
   }
-  
-  const isCurrentUser = currentUser?.id === entrepreneur.id;
-  const isInvestor = currentUser?.role === 'investor';
-  
-  // Check if the current investor has already sent a request to this entrepreneur
-  const hasRequestedCollaboration = isInvestor && id 
-    ? getRequestsFromInvestor(currentUser.id).some(req => req.entrepreneurId === id)
-    : false;
-  
-  const handleSendRequest = () => {
-    if (isInvestor && currentUser && id) {
-      createCollaborationRequest(
-        currentUser.id,
-        id,
-        `I'm interested in learning more about ${entrepreneur.startupName} and would like to explore potential investment opportunities.`
-      );
-      
-      // In a real app, we would refresh the data or update state
-      // For this demo, we'll force a page reload
-      window.location.reload();
-    }
-  };
-  
+
+  if (!entrepreneur) {
+    return (
+      <DashboardLayout>
+        <div className="text-center py-12">
+          <p className="text-gray-600 text-lg">Entrepreneur not found</p>
+          <Button onClick={() => navigate('/entrepreneurs')} className="mt-4">
+            Back to Entrepreneurs
+          </Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const isOwnProfile = currentUser?.id === entrepreneur.id;
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Profile header */}
-      <Card>
-        <CardBody className="sm:flex sm:items-start sm:justify-between p-6">
-          <div className="sm:flex sm:space-x-6">
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Back Button */}
+        <Button
+          variant="ghost"
+          onClick={() => navigate('/entrepreneurs')}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Entrepreneurs
+        </Button>
+
+        {/* Profile Header */}
+        <Card className="p-6">
+          <div className="flex flex-col md:flex-row gap-6">
             <Avatar
               src={entrepreneur.avatarUrl}
               alt={entrepreneur.name}
               size="xl"
-              status={entrepreneur.isOnline ? 'online' : 'offline'}
-              className="mx-auto sm:mx-0"
+              isOnline={entrepreneur.isOnline}
             />
-            
-            <div className="mt-4 sm:mt-0 text-center sm:text-left">
-              <h1 className="text-2xl font-bold text-gray-900">{entrepreneur.name}</h1>
-              <p className="text-gray-600 flex items-center justify-center sm:justify-start mt-1">
-                <Building2 size={16} className="mr-1" />
-                Founder at {entrepreneur.startupName}
-              </p>
-              
-              <div className="flex flex-wrap gap-2 justify-center sm:justify-start mt-3">
-                <Badge variant="primary">{entrepreneur.industry}</Badge>
-                <Badge variant="gray">
-                  <MapPin size={14} className="mr-1" />
-                  {entrepreneur.location}
-                </Badge>
-                <Badge variant="accent">
-                  <Calendar size={14} className="mr-1" />
-                  Founded {entrepreneur.foundedYear}
-                </Badge>
-                <Badge variant="secondary">
-                  <Users size={14} className="mr-1" />
-                  {entrepreneur.teamSize} team members
-                </Badge>
+            <div className="flex-1">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">{entrepreneur.name}</h1>
+                  {entrepreneur.startupName && (
+                    <p className="text-lg text-blue-600 font-semibold mt-1">
+                      {entrepreneur.startupName}
+                    </p>
+                  )}
+                  {entrepreneur.bio && (
+                    <p className="text-gray-600 mt-2">{entrepreneur.bio}</p>
+                  )}
+                </div>
+                {!isOwnProfile && (
+                  <Button className="flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4" />
+                    Send Message
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-4 mt-4">
+                {entrepreneur.location && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <MapPin className="w-4 h-4" />
+                    <span>{entrepreneur.location}</span>
+                  </div>
+                )}
+                {entrepreneur.industry && (
+                  <div className="flex items-center gap-2">
+                    <Building className="w-4 h-4 text-gray-600" />
+                    <Badge variant="secondary">{entrepreneur.industry}</Badge>
+                  </div>
+                )}
+                {entrepreneur.foundedYear && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Calendar className="w-4 h-4" />
+                    <span>Founded {entrepreneur.foundedYear}</span>
+                  </div>
+                )}
+                {entrepreneur.teamSize && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Users className="w-4 h-4" />
+                    <span>{entrepreneur.teamSize} team members</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
-          
-          <div className="mt-6 sm:mt-0 flex flex-col sm:flex-row gap-2 justify-center sm:justify-end">
-            {!isCurrentUser && (
-              <>
-                <Link to={`/chat/${entrepreneur.id}`}>
-                  <Button
-                    variant="outline"
-                    leftIcon={<MessageCircle size={18} />}
-                  >
-                    Message
-                  </Button>
-                </Link>
-                
-                {isInvestor && (
-                  <Button
-                    leftIcon={<Send size={18} />}
-                    disabled={hasRequestedCollaboration}
-                    onClick={handleSendRequest}
-                  >
-                    {hasRequestedCollaboration ? 'Request Sent' : 'Request Collaboration'}
-                  </Button>
-                )}
-              </>
-            )}
-            
-            {isCurrentUser && (
-              <Button
-                variant="outline"
-                leftIcon={<UserCircle size={18} />}
-              >
-                Edit Profile
-              </Button>
-            )}
-          </div>
-        </CardBody>
-      </Card>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main content - left side */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* About */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-medium text-gray-900">About</h2>
-            </CardHeader>
-            <CardBody>
-              <p className="text-gray-700">{entrepreneur.bio}</p>
-            </CardBody>
-          </Card>
-          
-          {/* Startup Description */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-medium text-gray-900">Startup Overview</h2>
-            </CardHeader>
-            <CardBody>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-md font-medium text-gray-900">Problem Statement</h3>
-                  <p className="text-gray-700 mt-1">
-                    {entrepreneur?.pitchSummary?.split('.')[0]}.
-                  </p>
+        </Card>
+
+        {/* Startup Details */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Pitch */}
+          {entrepreneur.pitchSummary && (
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Pitch Summary</h2>
+              <p className="text-gray-700 leading-relaxed">{entrepreneur.pitchSummary}</p>
+            </Card>
+          )}
+
+          {/* Funding */}
+          {entrepreneur.fundingNeeded && (
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Funding Details</h2>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <DollarSign className="w-6 h-6 text-green-600" />
                 </div>
-                
                 <div>
-                  <h3 className="text-md font-medium text-gray-900">Solution</h3>
-                  <p className="text-gray-700 mt-1">
-                    {entrepreneur.pitchSummary}
-                  </p>
-                </div>
-                
-                <div>
-                  <h3 className="text-md font-medium text-gray-900">Market Opportunity</h3>
-                  <p className="text-gray-700 mt-1">
-                    The {entrepreneur.industry} market is experiencing significant growth, with a projected CAGR of 14.5% through 2027. Our solution addresses key pain points in this expanding market.
-                  </p>
-                </div>
-                
-                <div>
-                  <h3 className="text-md font-medium text-gray-900">Competitive Advantage</h3>
-                  <p className="text-gray-700 mt-1">
-                    Unlike our competitors, we offer a unique approach that combines innovative technology with deep industry expertise, resulting in superior outcomes for our customers.
-                  </p>
+                  <p className="text-sm text-gray-600">Seeking Investment</p>
+                  <p className="text-2xl font-bold text-gray-900">{entrepreneur.fundingNeeded}</p>
                 </div>
               </div>
-            </CardBody>
-          </Card>
-          
-          {/* Team */}
-          <Card>
-            <CardHeader className="flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">Team</h2>
-              <span className="text-sm text-gray-500">{entrepreneur.teamSize} members</span>
-            </CardHeader>
-            <CardBody>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex items-center p-3 border border-gray-200 rounded-md">
-                  <Avatar
-                    src={entrepreneur.avatarUrl}
-                    alt={entrepreneur.name}
-                    size="md"
-                    className="mr-3"
-                  />
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-900">{entrepreneur.name}</h3>
-                    <p className="text-xs text-gray-500">Founder & CEO</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center p-3 border border-gray-200 rounded-md">
-                  <Avatar
-                    src="https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg"
-                    alt="Team Member"
-                    size="md"
-                    className="mr-3"
-                  />
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-900">Alex Johnson</h3>
-                    <p className="text-xs text-gray-500">CTO</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center p-3 border border-gray-200 rounded-md">
-                  <Avatar
-                    src="https://images.pexels.com/photos/773371/pexels-photo-773371.jpeg"
-                    alt="Team Member"
-                    size="md"
-                    className="mr-3"
-                  />
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-900">Jessica Chen</h3>
-                    <p className="text-xs text-gray-500">Head of Product</p>
-                  </div>
-                </div>
-                
-                {entrepreneur.teamSize > 3 && (
-                  <div className="flex items-center justify-center p-3 border border-dashed border-gray-200 rounded-md">
-                    <p className="text-sm text-gray-500">+ {entrepreneur.teamSize - 3} more team members</p>
-                  </div>
-                )}
-              </div>
-            </CardBody>
-          </Card>
+            </Card>
+          )}
         </div>
-        
-        {/* Sidebar - right side */}
-        <div className="space-y-6">
-          {/* Funding Details */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-medium text-gray-900">Funding</h2>
-            </CardHeader>
-            <CardBody>
-              <div className="space-y-4">
-                <div>
-                  <span className="text-sm text-gray-500">Current Round</span>
-                  <div className="flex items-center mt-1">
-                    <DollarSign size={18} className="text-accent-600 mr-1" />
-                    <p className="text-lg font-semibold text-gray-900">{entrepreneur.fundingNeeded}</p>
-                  </div>
-                </div>
-                
-                <div>
-                  <span className="text-sm text-gray-500">Valuation</span>
-                  <p className="text-md font-medium text-gray-900">$8M - $12M</p>
-                </div>
-                
-                <div>
-                  <span className="text-sm text-gray-500">Previous Funding</span>
-                  <p className="text-md font-medium text-gray-900">$750K Seed (2022)</p>
-                </div>
-                
-                <div className="pt-3 border-t border-gray-100">
-                  <span className="text-sm text-gray-500">Funding Timeline</span>
-                  <div className="mt-2 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-medium">Pre-seed</span>
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Completed</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-medium">Seed</span>
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Completed</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-medium">Series A</span>
-                      <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">In Progress</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardBody>
+
+        {/* Contact Actions */}
+        {!isOwnProfile && (
+          <Card className="p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Get in Touch</h2>
+            <div className="flex gap-4">
+              <Button className="flex-1">Send Collaboration Request</Button>
+              <Button variant="outline" className="flex-1">Schedule Meeting</Button>
+            </div>
           </Card>
-          
-          {/* Documents */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-medium text-gray-900">Documents</h2>
-            </CardHeader>
-            <CardBody>
-              <div className="space-y-3">
-                <div className="flex items-center p-3 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
-                  <div className="p-2 bg-primary-50 rounded-md mr-3">
-                    <FileText size={18} className="text-primary-700" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-medium text-gray-900">Pitch Deck</h3>
-                    <p className="text-xs text-gray-500">Updated 2 months ago</p>
-                  </div>
-                  <Button variant="outline" size="sm">View</Button>
-                </div>
-                
-                <div className="flex items-center p-3 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
-                  <div className="p-2 bg-primary-50 rounded-md mr-3">
-                    <FileText size={18} className="text-primary-700" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-medium text-gray-900">Business Plan</h3>
-                    <p className="text-xs text-gray-500">Updated 1 month ago</p>
-                  </div>
-                  <Button variant="outline" size="sm">View</Button>
-                </div>
-                
-                <div className="flex items-center p-3 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
-                  <div className="p-2 bg-primary-50 rounded-md mr-3">
-                    <FileText size={18} className="text-primary-700" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-medium text-gray-900">Financial Projections</h3>
-                    <p className="text-xs text-gray-500">Updated 2 weeks ago</p>
-                  </div>
-                  <Button variant="outline" size="sm">View</Button>
-                </div>
-              </div>
-              
-              {!isCurrentUser && isInvestor && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <p className="text-sm text-gray-500">
-                    Request access to detailed documents and financials by sending a collaboration request.
-                  </p>
-                  
-                  {!hasRequestedCollaboration ? (
-                    <Button
-                      className="mt-3 w-full"
-                      onClick={handleSendRequest}
-                    >
-                      Request Collaboration
-                    </Button>
-                  ) : (
-                    <Button
-                      className="mt-3 w-full"
-                      disabled
-                    >
-                      Request Sent
-                    </Button>
-                  )}
-                </div>
-              )}
-            </CardBody>
+        )}
+
+        {isOwnProfile && (
+          <Card className="p-6 bg-blue-50 border-blue-200">
+            <p className="text-blue-800">This is your profile. You can edit it in Settings.</p>
           </Card>
-        </div>
+        )}
       </div>
-    </div>
+    </DashboardLayout>
   );
 };

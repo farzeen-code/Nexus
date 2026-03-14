@@ -1,272 +1,218 @@
-import React from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { MessageCircle, Building2, MapPin, UserCircle, BarChart3, Briefcase } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Avatar } from '../../components/ui/Avatar';
-import { Button } from '../../components/ui/Button';
-import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { useAuth } from '../../context/AuthContext';
-import { findUserById } from '../../data/users';
+import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { MapPin, DollarSign, TrendingUp, Briefcase, ArrowLeft, MessageCircle } from 'lucide-react';
+import { userAPI } from '../../services/api';
 import { Investor } from '../../types';
+import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 
 export const InvestorProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
-  
-  // Fetch investor data
-  const investor = findUserById(id || '') as Investor | null;
-  
-  if (!investor || investor.role !== 'investor') {
+  const [investor, setInvestor] = useState<Investor | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchInvestor = async () => {
+      if (!id) return;
+
+      try {
+        setLoading(true);
+        const response = await userAPI.getUserById(id);
+        
+        if (response.data.data.role !== 'investor') {
+          toast.error('This is not an investor profile');
+          navigate('/investors');
+          return;
+        }
+
+        setInvestor(response.data.data as Investor);
+      } catch (error: any) {
+        console.error('Failed to fetch investor:', error);
+        toast.error('Investor not found');
+        navigate('/investors');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInvestor();
+  }, [id, navigate]);
+
+  if (loading) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-gray-900">Investor not found</h2>
-        <p className="text-gray-600 mt-2">The investor profile you're looking for doesn't exist or has been removed.</p>
-        <Link to="/dashboard/entrepreneur">
-          <Button variant="outline" className="mt-4">Back to Dashboard</Button>
-        </Link>
-      </div>
+      <DashboardLayout>
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="text-gray-600 mt-4">Loading profile...</p>
+        </div>
+      </DashboardLayout>
     );
   }
-  
-  const isCurrentUser = currentUser?.id === investor.id;
-  
+
+  if (!investor) {
+    return (
+      <DashboardLayout>
+        <div className="text-center py-12">
+          <p className="text-gray-600 text-lg">Investor not found</p>
+          <Button onClick={() => navigate('/investors')} className="mt-4">
+            Back to Investors
+          </Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const isOwnProfile = currentUser?.id === investor.id;
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Profile header */}
-      <Card>
-        <CardBody className="sm:flex sm:items-start sm:justify-between p-6">
-          <div className="sm:flex sm:space-x-6">
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Back Button */}
+        <Button
+          variant="ghost"
+          onClick={() => navigate('/investors')}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Investors
+        </Button>
+
+        {/* Profile Header */}
+        <Card className="p-6">
+          <div className="flex flex-col md:flex-row gap-6">
             <Avatar
               src={investor.avatarUrl}
               alt={investor.name}
               size="xl"
-              status={investor.isOnline ? 'online' : 'offline'}
-              className="mx-auto sm:mx-0"
+              isOnline={investor.isOnline}
             />
-            
-            <div className="mt-4 sm:mt-0 text-center sm:text-left">
-              <h1 className="text-2xl font-bold text-gray-900">{investor.name}</h1>
-              <p className="text-gray-600 flex items-center justify-center sm:justify-start mt-1">
-                <Building2 size={16} className="mr-1" />
-                Investor • {investor.totalInvestments} investments
-              </p>
-              
-              <div className="flex flex-wrap gap-2 justify-center sm:justify-start mt-3">
-                <Badge variant="primary">
-                  <MapPin size={14} className="mr-1" />
-                  San Francisco, CA
-                </Badge>
-                {investor.investmentStage.map((stage, index) => (
-                  <Badge key={index} variant="secondary" size="sm">{stage}</Badge>
-                ))}
+            <div className="flex-1">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">{investor.name}</h1>
+                  {investor.bio && (
+                    <p className="text-gray-600 mt-2">{investor.bio}</p>
+                  )}
+                </div>
+                {!isOwnProfile && (
+                  <Button className="flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4" />
+                    Send Message
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-4 mt-4">
+                {investor.location && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <MapPin className="w-4 h-4" />
+                    <span>{investor.location}</span>
+                  </div>
+                )}
+                {investor.totalInvestments > 0 && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Briefcase className="w-4 h-4" />
+                    <span>{investor.totalInvestments} investments</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
-          
-          <div className="mt-6 sm:mt-0 flex flex-col sm:flex-row gap-2 justify-center sm:justify-end">
-            {!isCurrentUser && (
-              <Link to={`/chat/${investor.id}`}>
-                <Button
-                  leftIcon={<MessageCircle size={18} />}
-                >
-                  Message
-                </Button>
-              </Link>
-            )}
-            
-            {isCurrentUser && (
-              <Button
-                variant="outline"
-                leftIcon={<UserCircle size={18} />}
-              >
-                Edit Profile
-              </Button>
-            )}
-          </div>
-        </CardBody>
-      </Card>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main content - left side */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* About */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-medium text-gray-900">About</h2>
-            </CardHeader>
-            <CardBody>
-              <p className="text-gray-700">{investor.bio}</p>
-            </CardBody>
-          </Card>
-          
+        </Card>
+
+        {/* Investment Details */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Investment Interests */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-medium text-gray-900">Investment Interests</h2>
-            </CardHeader>
-            <CardBody>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-md font-medium text-gray-900">Industries</h3>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {investor.investmentInterests.map((interest, index) => (
-                      <Badge key={index} variant="primary" size="md">{interest}</Badge>
-                    ))}
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-md font-medium text-gray-900">Investment Stages</h3>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {investor.investmentStage.map((stage, index) => (
-                      <Badge key={index} variant="secondary" size="md">{stage}</Badge>
-                    ))}
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-md font-medium text-gray-900">Investment Criteria</h3>
-                  <ul className="mt-2 space-y-2 text-gray-700">
-                    <li className="flex items-start">
-                      <span className="inline-block w-2 h-2 bg-primary-600 rounded-full mt-1.5 mr-2"></span>
-                      Strong founding team with domain expertise
-                    </li>
-                    <li className="flex items-start">
-                      <span className="inline-block w-2 h-2 bg-primary-600 rounded-full mt-1.5 mr-2"></span>
-                      Clear market opportunity and product-market fit
-                    </li>
-                    <li className="flex items-start">
-                      <span className="inline-block w-2 h-2 bg-primary-600 rounded-full mt-1.5 mr-2"></span>
-                      Scalable business model with strong unit economics
-                    </li>
-                    <li className="flex items-start">
-                      <span className="inline-block w-2 h-2 bg-primary-600 rounded-full mt-1.5 mr-2"></span>
-                      Potential for significant growth and market impact
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-          
-          {/* Portfolio Companies */}
-          <Card>
-            <CardHeader className="flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">Portfolio Companies</h2>
-              <span className="text-sm text-gray-500">{investor.portfolioCompanies.length} companies</span>
-            </CardHeader>
-            <CardBody>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {investor.portfolioCompanies.map((company, index) => (
-                  <div key={index} className="flex items-center p-3 border border-gray-200 rounded-md">
-                    <div className="p-3 bg-primary-50 rounded-md mr-3">
-                      <Briefcase size={18} className="text-primary-700" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-900">{company}</h3>
-                      <p className="text-xs text-gray-500">Invested in 2022</p>
-                    </div>
-                  </div>
+          {investor.investmentInterests && investor.investmentInterests.length > 0 && (
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Investment Interests</h2>
+              <div className="flex flex-wrap gap-2">
+                {investor.investmentInterests.map((interest, index) => (
+                  <Badge key={index} variant="primary">{interest}</Badge>
                 ))}
               </div>
-            </CardBody>
-          </Card>
-        </div>
-        
-        {/* Sidebar - right side */}
-        <div className="space-y-6">
-          {/* Investment Details */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-medium text-gray-900">Investment Details</h2>
-            </CardHeader>
-            <CardBody>
-              <div className="space-y-4">
-                <div>
-                  <span className="text-sm text-gray-500">Investment Range</span>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {investor.minimumInvestment} - {investor.maximumInvestment}
-                  </p>
-                </div>
-                
-                <div>
-                  <span className="text-sm text-gray-500">Total Investments</span>
-                  <p className="text-md font-medium text-gray-900">{investor.totalInvestments} companies</p>
-                </div>
-                
-                <div>
-                  <span className="text-sm text-gray-500">Typical Investment Timeline</span>
-                  <p className="text-md font-medium text-gray-900">3-5 years</p>
-                </div>
-                
-                <div className="pt-3 border-t border-gray-100">
-                  <span className="text-sm text-gray-500">Investment Focus</span>
-                  <div className="mt-2 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-medium">SaaS & B2B</span>
-                      <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div className="bg-primary-600 h-2 rounded-full" style={{ width: '75%' }}></div>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-medium">FinTech</span>
-                      <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div className="bg-primary-600 h-2 rounded-full" style={{ width: '60%' }}></div>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-medium">HealthTech</span>
-                      <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div className="bg-primary-600 h-2 rounded-full" style={{ width: '40%' }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            </Card>
+          )}
+
+          {/* Investment Stage */}
+          {investor.investmentStage && investor.investmentStage.length > 0 && (
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Investment Stage</h2>
+              <div className="flex flex-wrap gap-2">
+                {investor.investmentStage.map((stage, index) => (
+                  <Badge key={index} variant="secondary">{stage}</Badge>
+                ))}
               </div>
-            </CardBody>
-          </Card>
-          
-          {/* Stats */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-medium text-gray-900">Investment Stats</h2>
-            </CardHeader>
-            <CardBody>
+            </Card>
+          )}
+
+          {/* Investment Range */}
+          {(investor.minimumInvestment || investor.maximumInvestment) && (
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Investment Range</h2>
               <div className="space-y-3">
-                <div className="p-3 border border-gray-200 rounded-md bg-gray-50">
-                  <div className="flex justify-between items-center">
+                {investor.minimumInvestment && (
+                  <div className="flex items-center gap-3">
+                    <DollarSign className="w-5 h-5 text-gray-400" />
                     <div>
-                      <h3 className="text-sm font-medium text-gray-900">Successful Exits</h3>
-                      <p className="text-xl font-semibold text-primary-700 mt-1">4</p>
+                      <p className="text-sm text-gray-600">Minimum</p>
+                      <p className="font-semibold text-gray-900">{investor.minimumInvestment}</p>
                     </div>
-                    <BarChart3 size={24} className="text-primary-600" />
                   </div>
-                </div>
-                
-                <div className="p-3 border border-gray-200 rounded-md bg-gray-50">
-                  <div className="flex justify-between items-center">
+                )}
+                {investor.maximumInvestment && (
+                  <div className="flex items-center gap-3">
+                    <TrendingUp className="w-5 h-5 text-gray-400" />
                     <div>
-                      <h3 className="text-sm font-medium text-gray-900">Avg. ROI</h3>
-                      <p className="text-xl font-semibold text-primary-700 mt-1">3.2x</p>
+                      <p className="text-sm text-gray-600">Maximum</p>
+                      <p className="font-semibold text-gray-900">{investor.maximumInvestment}</p>
                     </div>
-                    <BarChart3 size={24} className="text-primary-600" />
                   </div>
-                </div>
-                
-                <div className="p-3 border border-gray-200 rounded-md bg-gray-50">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-900">Active Investments</h3>
-                      <p className="text-xl font-semibold text-primary-700 mt-1">{investor.portfolioCompanies.length}</p>
-                    </div>
-                    <BarChart3 size={24} className="text-primary-600" />
-                  </div>
-                </div>
+                )}
               </div>
-            </CardBody>
-          </Card>
+            </Card>
+          )}
+
+          {/* Portfolio Companies */}
+          {investor.portfolioCompanies && investor.portfolioCompanies.length > 0 && (
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Portfolio Companies</h2>
+              <ul className="space-y-2">
+                {investor.portfolioCompanies.map((company, index) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full" />
+                    <span className="text-gray-700">{company}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
         </div>
+
+        {/* Contact Actions */}
+        {!isOwnProfile && (
+          <Card className="p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Get in Touch</h2>
+            <div className="flex gap-4">
+              <Button className="flex-1">Request Meeting</Button>
+              <Button variant="outline" className="flex-1">Send Pitch Deck</Button>
+            </div>
+          </Card>
+        )}
+
+        {isOwnProfile && (
+          <Card className="p-6 bg-blue-50 border-blue-200">
+            <p className="text-blue-800">This is your profile. You can edit it in Settings.</p>
+          </Card>
+        )}
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
