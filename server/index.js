@@ -7,26 +7,34 @@ dotenv.config();
 
 const app = express();
 
-// CORS configuration
+// CORS configuration - Allow Vercel preview URLs
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
   'http://localhost:5176',
   'http://localhost:5177',
+  'https://nexus-rho-two.vercel.app',  // Main Vercel domain
   process.env.CLIENT_URL
-].filter(Boolean);
+];
 
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
     
+    // Allow main domains
     if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+      return callback(null, true);
     }
+    
+    // Allow all Vercel preview URLs
+    if (origin && origin.includes('vercel.app')) {
+      return callback(null, true);
+    }
+    
+    // Reject others
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true
 }));
