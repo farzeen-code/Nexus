@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { DashboardLayout } from '../../components/layout/DashboardLayout';
+
 import { Avatar } from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -47,32 +47,32 @@ export const InvestorProfile: React.FC = () => {
 
   if (loading) {
     return (
-      <DashboardLayout>
+      
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="text-gray-600 mt-4">Loading profile...</p>
         </div>
-      </DashboardLayout>
+     
     );
   }
 
   if (!investor) {
     return (
-      <DashboardLayout>
+      
         <div className="text-center py-12">
           <p className="text-gray-600 text-lg">Investor not found</p>
           <Button onClick={() => navigate('/investors')} className="mt-4">
             Back to Investors
           </Button>
         </div>
-      </DashboardLayout>
+      
     );
   }
 
   const isOwnProfile = currentUser?.id === investor.id;
 
   return (
-    <DashboardLayout>
+    
       <div className="space-y-6">
         {/* Back Button */}
         <Button
@@ -213,6 +213,6 @@ export const InvestorProfile: React.FC = () => {
           </Card>
         )}
       </div>
-    </DashboardLayout>
+   
   );
 };

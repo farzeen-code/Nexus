@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DashboardLayout } from '../../components/layout/DashboardLayout';
+
 import { InvestorCard } from '../../components/investor/InvestorCard';
 import { Input } from '../../components/ui/Input';
 import { Search } from 'lucide-react';
@@ -53,7 +53,7 @@ export const InvestorsPage: React.FC = () => {
   }, [searchQuery, investors]);
 
   return (
-    <DashboardLayout>
+    
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Investors</h1>
@@ -109,6 +109,6 @@ export const InvestorsPage: React.FC = () => {
           </div>
         )}
       </div>
-    </DashboardLayout>
+    
   );
 };
