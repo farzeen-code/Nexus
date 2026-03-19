@@ -1,196 +1,175 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
-import { Send, Phone, Video, Info, Smile } from 'lucide-react';
-import { Avatar } from '../../components/ui/Avatar';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import { ChatMessage } from '../../components/chat/ChatMessage';
-import { ChatUserList } from '../../components/chat/ChatUserList';
+import { Avatar } from '../../components/ui/Avatar';
+import { ArrowLeft, Send } from 'lucide-react';
+import { messageAPI, userAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Message } from '../../types';
-import { findUserById } from '../../data/users';
-import { getMessagesBetweenUsers, sendMessage, getConversationsForUser } from '../../data/messages';
-import { MessageCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { format } from 'date-fns';
 
 export const ChatPage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
-  const { user: currentUser } = useAuth();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<any[]>([]);
+  const [otherUser, setOtherUser] = useState<any>(null);
   const [newMessage, setNewMessage] = useState('');
-  const [conversations, setConversations] = useState<any[]>([]);
-  const messagesEndRef = useRef<null | HTMLDivElement>(null);
-  
-  const chatPartner = userId ? findUserById(userId) : null;
-  
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    // Load conversations
-    if (currentUser) {
-      setConversations(getConversationsForUser(currentUser.id));
+    if (userId) {
+      fetchUser();
+      fetchMessages();
+      const interval = setInterval(fetchMessages, 3000);
+      return () => clearInterval(interval);
     }
-  }, [currentUser]);
-  
+  }, [userId]);
+
   useEffect(() => {
-    // Load messages between users
-    if (currentUser && userId) {
-      setMessages(getMessagesBetweenUsers(currentUser.id, userId));
-    }
-  }, [currentUser, userId]);
-  
-  useEffect(() => {
-    // Scroll to bottom of messages
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    scrollToBottom();
   }, [messages]);
-  
-  const handleSendMessage = (e: React.FormEvent) => {
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const fetchUser = async () => {
+    try {
+      const response = await userAPI.getUserById(userId!);
+      setOtherUser(response.data.data);
+    } catch (error) {
+      toast.error('Failed to load user');
+      navigate('/messages');
+    }
+  };
+
+  const fetchMessages = async () => {
+    try {
+      const response = await messageAPI.getConversation(userId!);
+      setMessages(response.data.data);
+      setLoading(false);
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+      setLoading(false);
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newMessage.trim() || !currentUser || !userId) return;
-    
-    const message = sendMessage({
-      senderId: currentUser.id,
-      receiverId: userId,
-      content: newMessage
-    });
-    
-    setMessages([...messages, message]);
-    setNewMessage('');
-    
-    // Update conversations
-    setConversations(getConversationsForUser(currentUser.id));
-  };
-  
-  if (!currentUser) return null;
-  
-  return (
-    <div className="flex h-[calc(100vh-4rem)] bg-white border border-gray-200 rounded-lg overflow-hidden animate-fade-in">
-      {/* Conversations sidebar */}
-      <div className="hidden md:block w-1/3 lg:w-1/4 border-r border-gray-200">
-        <ChatUserList conversations={conversations} />
-      </div>
+    if (!newMessage.trim()) return;
+
+    try {
+      setSending(true);
+      await messageAPI.sendMessage({
+        receiver: userId!,
+        content: newMessage.trim()
+      });
       
-      {/* Main chat area */}
-      <div className="flex-1 flex flex-col">
-        {/* Chat header */}
-        {chatPartner ? (
-          <>
-            <div className="border-b border-gray-200 p-4 flex justify-between items-center">
-              <div className="flex items-center">
-                <Avatar
-                  src={chatPartner.avatarUrl}
-                  alt={chatPartner.name}
-                  size="md"
-                  status={chatPartner.isOnline ? 'online' : 'offline'}
-                  className="mr-3"
-                />
-                
-                <div>
-                  <h2 className="text-lg font-medium text-gray-900">{chatPartner.name}</h2>
-                  <p className="text-sm text-gray-500">
-                    {chatPartner.isOnline ? 'Online' : 'Last seen recently'}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex space-x-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="rounded-full p-2"
-                  aria-label="Voice call"
-                >
-                  <Phone size={18} />
-                </Button>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="rounded-full p-2"
-                  aria-label="Video call"
-                >
-                  <Video size={18} />
-                </Button>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="rounded-full p-2"
-                  aria-label="Info"
-                >
-                  <Info size={18} />
-                </Button>
+      setNewMessage('');
+      fetchMessages();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to send message');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="text-gray-600 mt-4">Loading chat...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-[calc(100vh-8rem)] flex flex-col">
+      <div className="mb-4">
+        <Button
+          variant="ghost"
+          onClick={() => navigate('/messages')}
+          className="flex items-center gap-2 mb-4"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Messages
+        </Button>
+
+        {otherUser && (
+          <Card className="p-4">
+            <div className="flex items-center gap-3">
+              <Avatar
+                src={otherUser.avatarUrl}
+                alt={otherUser.name}
+                size="md"
+                isOnline={otherUser.isOnline}
+              />
+              <div>
+                <h2 className="font-semibold text-gray-900">{otherUser.name}</h2>
+                <p className="text-sm text-gray-600">{otherUser.role}</p>
               </div>
             </div>
-            
-            {/* Messages container */}
-            <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
-              {messages.length > 0 ? (
-                <div className="space-y-4">
-                  {messages.map(message => (
-                    <ChatMessage
-                      key={message.id}
-                      message={message}
-                      isCurrentUser={message.senderId === currentUser.id}
-                    />
-                  ))}
-                  <div ref={messagesEndRef} />
-                </div>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center">
-                  <div className="bg-gray-100 p-4 rounded-full mb-4">
-                    <MessageCircle size={32} className="text-gray-400" />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-700">No messages yet</h3>
-                  <p className="text-gray-500 mt-1">Send a message to start the conversation</p>
-                </div>
-              )}
-            </div>
-            
-            {/* Message input */}
-            <div className="border-t border-gray-200 p-4">
-              <form onSubmit={handleSendMessage} className="flex space-x-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="rounded-full p-2"
-                  aria-label="Add emoji"
-                >
-                  <Smile size={20} />
-                </Button>
-                
-                <Input
-                  type="text"
-                  placeholder="Type a message..."
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  fullWidth
-                  className="flex-1"
-                />
-                
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={!newMessage.trim()}
-                  className="rounded-full p-2 w-10 h-10 flex items-center justify-center"
-                  aria-label="Send message"
-                >
-                  <Send size={18} />
-                </Button>
-              </form>
-            </div>
-          </>
-        ) : (
-          <div className="h-full flex flex-col items-center justify-center p-4">
-            <div className="bg-gray-100 p-6 rounded-full mb-4">
-              <MessageCircle size={48} className="text-gray-400" />
-            </div>
-            <h2 className="text-xl font-medium text-gray-700">Select a conversation</h2>
-            <p className="text-gray-500 mt-2 text-center">
-              Choose a contact from the list to start chatting
-            </p>
-          </div>
+          </Card>
         )}
       </div>
+
+      <Card className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {messages.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No messages yet. Start the conversation!</p>
+            </div>
+          ) : (
+            messages.map((message) => {
+              const isSender = message.sender._id === user?.id;
+              
+              return (
+                <div
+                  key={message._id}
+                  className={`flex ${isSender ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`max-w-xs lg:max-w-md ${isSender ? 'order-2' : 'order-1'}`}>
+                    <div
+                      className={`rounded-lg px-4 py-2 ${
+                        isSender
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-900'
+                      }`}
+                    >
+                      <p className="text-sm">{message.content}</p>
+                    </div>
+                    <p className={`text-xs text-gray-500 mt-1 ${isSender ? 'text-right' : 'text-left'}`}>
+                      {format(new Date(message.createdAt), 'MMM dd, h:mm a')}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <form onSubmit={handleSendMessage} className="border-t p-4">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Type a message..."
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={sending}
+            />
+            <Button type="submit" disabled={sending || !newMessage.trim()}>
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+        </form>
+      </Card>
     </div>
   );
 };

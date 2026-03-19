@@ -1,272 +1,222 @@
-import React, { useState } from 'react';
-import { Search, Filter, DollarSign, TrendingUp, Users, Calendar } from 'lucide-react';
-import { Card, CardHeader, CardBody } from '../../components/ui/Card';
-import { Input } from '../../components/ui/Input';
+import React, { useState, useEffect } from 'react';
+import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Avatar } from '../../components/ui/Avatar';
-
-const deals = [
-  {
-    id: 1,
-    startup: {
-      name: 'TechWave AI',
-      logo: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg',
-      industry: 'FinTech'
-    },
-    amount: '$1.5M',
-    equity: '15%',
-    status: 'Due Diligence',
-    stage: 'Series A',
-    lastActivity: '2024-02-15'
-  },
-  {
-    id: 2,
-    startup: {
-      name: 'GreenLife Solutions',
-      logo: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg',
-      industry: 'CleanTech'
-    },
-    amount: '$2M',
-    equity: '20%',
-    status: 'Term Sheet',
-    stage: 'Seed',
-    lastActivity: '2024-02-10'
-  },
-  {
-    id: 3,
-    startup: {
-      name: 'HealthPulse',
-      logo: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg',
-      industry: 'HealthTech'
-    },
-    amount: '$800K',
-    equity: '12%',
-    status: 'Negotiation',
-    stage: 'Pre-seed',
-    lastActivity: '2024-02-05'
-  }
-];
+import { Briefcase, CheckCircle, XCircle, Eye } from 'lucide-react';
+import { collaborationAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import toast from 'react-hot-toast';
+import { formatDistanceToNow } from 'date-fns';
 
 export const DealsPage: React.FC = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
-  
-  const statuses = ['Due Diligence', 'Term Sheet', 'Negotiation', 'Closed', 'Passed'];
-  
-  const toggleStatus = (status: string) => {
-    setSelectedStatus(prev => 
-      prev.includes(status)
-        ? prev.filter(s => s !== status)
-        : [...prev, status]
-    );
-  };
-  
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Due Diligence':
-        return 'primary';
-      case 'Term Sheet':
-        return 'secondary';
-      case 'Negotiation':
-        return 'accent';
-      case 'Closed':
-        return 'success';
-      case 'Passed':
-        return 'error';
-      default:
-        return 'gray';
+  const { user } = useAuth();
+  const [requests, setRequests] = useState<any[]>([]);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all');
+  const [viewType, setViewType] = useState<'all' | 'sent' | 'received'>('all');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRequests();
+  }, [filter, viewType]);
+
+  const fetchRequests = async () => {
+    try {
+      setLoading(true);
+      const params: any = { type: viewType };
+      if (filter !== 'all') params.status = filter;
+      
+      const response = await collaborationAPI.getRequests(params);
+      setRequests(response.data.data);
+    } catch (error) {
+      toast.error('Failed to load collaboration requests');
+    } finally {
+      setLoading(false);
     }
   };
-  
+
+  const handleStatusUpdate = async (requestId: string, status: 'accepted' | 'rejected' | 'under_review') => {
+    try {
+      await collaborationAPI.updateStatus(requestId, status);
+      toast.success(`Request ${status} successfully`);
+      fetchRequests();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to update request');
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const variants: any = {
+      pending: 'default',
+      accepted: 'success',
+      rejected: 'error',
+      under_review: 'secondary'
+    };
+    return <Badge variant={variants[status] || 'default'}>{status.replace('_', ' ')}</Badge>;
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="text-gray-600 mt-4">Loading deals...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Investment Deals</h1>
-          <p className="text-gray-600">Track and manage your investment pipeline</p>
-        </div>
-        
-        <Button>
-          Add Deal
-        </Button>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {user?.role === 'entrepreneur' ? 'Investment Proposals' : 'Deal Flow'}
+        </h1>
+        <p className="text-gray-600 mt-2">
+          {user?.role === 'entrepreneur' 
+            ? 'Manage your investment proposals to investors'
+            : 'Review collaboration requests from entrepreneurs'}
+        </p>
       </div>
-      
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardBody>
-            <div className="flex items-center">
-              <div className="p-3 bg-primary-100 rounded-lg mr-3">
-                <DollarSign size={20} className="text-primary-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Investment</p>
-                <p className="text-lg font-semibold text-gray-900">$4.3M</p>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-        
-        <Card>
-          <CardBody>
-            <div className="flex items-center">
-              <div className="p-3 bg-secondary-100 rounded-lg mr-3">
-                <TrendingUp size={20} className="text-secondary-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Active Deals</p>
-                <p className="text-lg font-semibold text-gray-900">8</p>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-        
-        <Card>
-          <CardBody>
-            <div className="flex items-center">
-              <div className="p-3 bg-accent-100 rounded-lg mr-3">
-                <Users size={20} className="text-accent-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Portfolio Companies</p>
-                <p className="text-lg font-semibold text-gray-900">12</p>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-        
-        <Card>
-          <CardBody>
-            <div className="flex items-center">
-              <div className="p-3 bg-success-100 rounded-lg mr-3">
-                <Calendar size={20} className="text-success-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Closed This Month</p>
-                <p className="text-lg font-semibold text-gray-900">2</p>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-      </div>
-      
-      {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="w-full md:w-2/3">
-          <Input
-            placeholder="Search deals by startup name or industry..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            startAdornment={<Search size={18} />}
-            fullWidth
-          />
+
+      <div className="flex flex-wrap gap-2">
+        <div className="flex gap-2">
+          {['all', 'sent', 'received'].map((type) => (
+            <button
+              key={type}
+              onClick={() => setViewType(type as any)}
+              className={`px-4 py-2 rounded-lg font-medium ${
+                viewType === type
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {type.charAt(0).toUpperCase() + type.slice(1)}
+            </button>
+          ))}
         </div>
-        
-        <div className="w-full md:w-1/3">
-          <div className="flex items-center gap-2">
-            <Filter size={18} className="text-gray-500" />
-            <div className="flex flex-wrap gap-2">
-              {statuses.map(status => (
-                <Badge
-                  key={status}
-                  variant={selectedStatus.includes(status) ? getStatusColor(status) : 'gray'}
-                  className="cursor-pointer"
-                  onClick={() => toggleStatus(status)}
-                >
-                  {status}
-                </Badge>
-              ))}
-            </div>
-          </div>
+
+        <div className="flex gap-2 ml-auto">
+          {['all', 'pending', 'accepted', 'rejected'].map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f as any)}
+              className={`px-4 py-2 rounded-lg font-medium ${
+                filter === f
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
         </div>
       </div>
-      
-      {/* Deals table */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-lg font-medium text-gray-900">Active Deals</h2>
-        </CardHeader>
-        <CardBody>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Startup
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Equity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Stage
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Activity
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {deals.map(deal => (
-                  <tr key={deal.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <Avatar
-                          src={deal.startup.logo}
-                          alt={deal.startup.name}
-                          size="sm"
-                          className="flex-shrink-0"
-                        />
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {deal.startup.name}
+
+      {requests.length === 0 ? (
+        <Card className="p-12 text-center">
+          <Briefcase className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600 text-lg">No collaboration requests found</p>
+          <p className="text-gray-500 text-sm mt-2">
+            {user?.role === 'entrepreneur'
+              ? 'Visit investor profiles to send investment proposals'
+              : 'Entrepreneurs will send you collaboration requests'}
+          </p>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {requests.map((request) => {
+            const isSender = request.entrepreneur._id === user?.id;
+            const otherUser = isSender ? request.investor : request.entrepreneur;
+            const canRespond = !isSender && request.status === 'pending';
+
+            return (
+              <Card key={request._id} className="p-6">
+                <div className="flex justify-between items-start gap-4">
+                  <div className="flex gap-4 flex-1">
+                    <Avatar
+                      src={otherUser.avatarUrl}
+                      alt={otherUser.name}
+                      size="md"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900">{request.title}</h3>
+                        {getStatusBadge(request.status)}
+                      </div>
+
+                      <p className="text-sm text-gray-600 mb-2">
+                        {isSender ? 'To: ' : 'From: '}
+                        <span className="font-medium text-gray-900">{otherUser.name}</span>
+                        {request.entrepreneur.startupName && (
+                          <span className="text-gray-500"> • {request.entrepreneur.startupName}</span>
+                        )}
+                      </p>
+
+                      <p className="text-gray-700 mb-3">{request.description}</p>
+
+                      <div className="flex flex-wrap gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">Amount: </span>
+                          <span className="font-semibold text-gray-900">{request.requestedAmount}</span>
+                        </div>
+                        {request.equity && (
+                          <div>
+                            <span className="text-gray-600">Equity: </span>
+                            <span className="font-semibold text-gray-900">{request.equity}</span>
                           </div>
-                          <div className="text-sm text-gray-500">
-                            {deal.startup.industry}
-                          </div>
+                        )}
+                        <div>
+                          <span className="text-gray-500">
+                            {formatDistanceToNow(new Date(request.createdAt), { addSuffix: true })}
+                          </span>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{deal.amount}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{deal.equity}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant={getStatusColor(deal.status)}>
-                        {deal.status}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{deal.stage}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
-                        {new Date(deal.lastActivity).toLocaleDateString()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Button variant="outline" size="sm">
-                        View Details
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardBody>
-      </Card>
+
+                      {request.message && (
+                        <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                          <p className="text-sm text-gray-700">{request.message}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    {canRespond && (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => handleStatusUpdate(request._id, 'under_review')}
+                          className="flex items-center gap-2"
+                          variant="outline"
+                        >
+                          <Eye className="w-4 h-4" />
+                          Review
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleStatusUpdate(request._id, 'accepted')}
+                          className="flex items-center gap-2"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleStatusUpdate(request._id, 'rejected')}
+                          className="flex items-center gap-2"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Reject
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

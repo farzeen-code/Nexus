@@ -1,63 +1,49 @@
 import React from 'react';
 
-export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-
-interface AvatarProps {
-  src: string;
+export interface AvatarProps {
+  src?: string;
   alt: string;
-  size?: AvatarSize;
-  className?: string;
-  status?: 'online' | 'offline' | 'away' | 'busy';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  isOnline?: boolean;
 }
 
-export const Avatar: React.FC<AvatarProps> = ({
-  src,
-  alt,
+const sizeClasses = {
+  sm: 'w-8 h-8',
+  md: 'w-10 h-10',
+  lg: 'w-12 h-12',
+  xl: 'w-24 h-24'
+};
+
+export const Avatar: React.FC<AvatarProps> = ({ 
+  src, 
+  alt, 
   size = 'md',
-  className = '',
-  status,
+  isOnline = false 
 }) => {
-  const sizeClasses = {
-    xs: 'h-6 w-6',
-    sm: 'h-8 w-8',
-    md: 'h-10 w-10',
-    lg: 'h-12 w-12',
-    xl: 'h-16 w-16',
-  };
-  
-  const statusColors = {
-    online: 'bg-success-500',
-    offline: 'bg-gray-400',
-    away: 'bg-warning-500',
-    busy: 'bg-error-500',
-  };
-  
-  const statusSizes = {
-    xs: 'h-1.5 w-1.5',
-    sm: 'h-2 w-2',
-    md: 'h-2.5 w-2.5',
-    lg: 'h-3 w-3',
-    xl: 'h-4 w-4',
-  };
-  
+  const initials = alt
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
   return (
-    <div className={`relative inline-block ${className}`}>
-      <img
-        src={src}
-        alt={alt}
-        className={`rounded-full object-cover ${sizeClasses[size]}`}
-        onError={(e) => {
-          // Fallback to initials if image fails to load
-          const target = e.target as HTMLImageElement;
-          target.onerror = null;
-          target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(alt)}&background=random`;
-        }}
-      />
-      
-      {status && (
-        <span 
-          className={`absolute bottom-0 right-0 block rounded-full ring-2 ring-white ${statusColors[status]} ${statusSizes[size]}`}
+    <div className="relative inline-block">
+      {src ? (
+        <img
+          src={src}
+          alt={alt}
+          className={`${sizeClasses[size]} rounded-full object-cover`}
         />
+      ) : (
+        <div
+          className={`${sizeClasses[size]} rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold`}
+        >
+          {initials}
+        </div>
+      )}
+      {isOnline && (
+        <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-green-500 ring-2 ring-white" />
       )}
     </div>
   );

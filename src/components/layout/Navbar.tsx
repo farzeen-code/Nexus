@@ -1,197 +1,271 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Menu, X, Bell, MessageCircle, User, LogOut, Building2, CircleDollarSign } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Avatar } from '../ui/Avatar';
 import { Button } from '../ui/Button';
+import { 
+  Bell, 
+  MessageCircle, 
+  User, 
+  LogOut, 
+  LayoutDashboard,
+  Menu,
+  X,
+  Calendar,
+  Briefcase
+} from 'lucide-react';
+import { messageAPI, meetingAPI, collaborationAPI } from '../../services/api';
 
 export const Navbar: React.FC = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [pendingMeetings, setPendingMeetings] = useState(0);
+  const [pendingProposals, setPendingProposals] = useState(0);
+
+  useEffect(() => {
+    if (user) {
+      fetchNotifications();
+      const interval = setInterval(fetchNotifications, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  const fetchNotifications = async () => {
+    try {
+      const [messagesRes, meetingsRes, proposalsRes] = await Promise.all([
+        messageAPI.getUnreadCount().catch(() => ({ data: { data: { unreadCount: 0 } } })),
+        meetingAPI.getUserMeetings({ status: 'pending', type: 'received' }).catch(() => ({ data: { count: 0 } })),
+        collaborationAPI.getRequests({ type: 'received', status: 'pending' }).catch(() => ({ data: { count: 0 } }))
+      ]);
+
+      setUnreadMessages(messagesRes.data.data.unreadCount);
+      setPendingMeetings(meetingsRes.data.count || 0);
+      setPendingProposals(proposalsRes.data.count || 0);
+    } catch (error) {
+      console.error('Failed to fetch notifications');
+    }
   };
-  
+
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
-  
-  // User dashboard route based on role
-  const dashboardRoute = user?.role === 'entrepreneur' 
-    ? '/dashboard/entrepreneur' 
-    : '/dashboard/investor';
-  
-  // User profile route based on role and ID
-  const profileRoute = user 
-    ? `/profile/${user.role}/${user.id}` 
-    : '/login';
-  
-  const navLinks = [
-    {
-      icon: user?.role === 'entrepreneur' ? <Building2 size={18} /> : <CircleDollarSign size={18} />,
-      text: 'Dashboard',
-      path: dashboardRoute,
-    },
-    {
-      icon: <MessageCircle size={18} />,
-      text: 'Messages',
-      path: user ? '/messages' : '/login',
-    },
-    {
-      icon: <Bell size={18} />,
-      text: 'Notifications',
-      path: user ? '/notifications' : '/login',
-    },
-    {
-      icon: <User size={18} />,
-      text: 'Profile',
-      path: profileRoute,
-    }
-  ];
-  
+
+  if (!user) return null;
+
+  const NotificationBadge = ({ count }: { count: number }) => {
+    if (count === 0) return null;
+    return (
+      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+        {count > 9 ? '9+' : count}
+      </span>
+    );
+  };
+
   return (
-    <nav className="bg-white shadow-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">
+      <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
-          {/* Logo and brand */}
-          <div className="flex-shrink-0 flex items-center">
-            <Link to="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-primary-600 rounded-md flex items-center justify-center">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-white">
-                  <path d="M20 7H4C2.89543 7 2 7.89543 2 9V19C2 20.1046 2.89543 21 4 21H20C21.1046 21 22 20.1046 22 19V9C22 7.89543 21.1046 7 20 7Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M16 21V5C16 3.89543 15.1046 3 14 3H10C8.89543 3 8 3.89543 8 5V21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
+          <div className="flex items-center">
+            <Link to={`/dashboard/${user.role}`} className="flex items-center gap-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-xl">N</span>
               </div>
-              <span className="text-lg font-bold text-gray-900">Business Nexus</span>
+              <span className="text-xl font-bold text-gray-900 hidden sm:block">
+                Business Nexus
+              </span>
             </Link>
           </div>
-          
-          {/* Desktop navigation */}
-          <div className="hidden md:flex md:items-center md:ml-6">
-            {user ? (
-              <div className="flex items-center space-x-4">
-                {navLinks.map((link, index) => (
-                  <Link
-                    key={index}
-                    to={link.path}
-                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 rounded-md transition-colors duration-200"
-                  >
-                    <span className="mr-2">{link.icon}</span>
-                    {link.text}
-                  </Link>
-                ))}
-                
-                <Button 
-                  variant="ghost"
-                  onClick={handleLogout}
-                  leftIcon={<LogOut size={18} />}
-                >
-                  Logout
-                </Button>
-                
-                <Link to={profileRoute} className="flex items-center space-x-2 ml-2">
-                  <Avatar
-                    src={user.avatarUrl}
-                    alt={user.name}
-                    size="sm"
-                    status={user.isOnline ? 'online' : 'offline'}
-                  />
-                  <span className="text-sm font-medium text-gray-700">{user.name}</span>
-                </Link>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-4">
-                <Link to="/login">
-                  <Button variant="outline">Log in</Button>
-                </Link>
-                <Link to="/register">
-                  <Button>Sign up</Button>
-                </Link>
-              </div>
+
+          <div className="hidden md:flex items-center gap-4">
+            <Link
+              to={`/dashboard/${user.role}`}
+              className="text-gray-600 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100"
+              title="Dashboard"
+            >
+              <LayoutDashboard className="w-5 h-5" />
+            </Link>
+
+            <Link
+              to="/meetings"
+              className="relative text-gray-600 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100"
+              title="Meetings"
+            >
+              <Calendar className="w-5 h-5" />
+              <NotificationBadge count={pendingMeetings} />
+            </Link>
+
+            {user.role === 'investor' && (
+              <Link
+                to="/deals"
+                className="relative text-gray-600 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100"
+                title="Proposals"
+              >
+                <Briefcase className="w-5 h-5" />
+                <NotificationBadge count={pendingProposals} />
+              </Link>
             )}
+
+            <Link
+              to="/messages"
+              className="relative text-gray-600 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100"
+              title="Messages"
+            >
+              <MessageCircle className="w-5 h-5" />
+              <NotificationBadge count={unreadMessages} />
+            </Link>
+
+            <Link
+              to="/notifications"
+              className="text-gray-600 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100"
+              title="Notifications"
+            >
+              <Bell className="w-5 h-5" />
+            </Link>
+
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 p-1 rounded-lg hover:bg-gray-100"
+              >
+                <Avatar src={user.avatarUrl} alt={user.name} size="sm" />
+                <span className="text-sm font-medium text-gray-700 hidden lg:block">
+                  {user.name}
+                </span>
+              </button>
+
+              {showUserMenu && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setShowUserMenu(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                    <Link
+                      to={`/profile/${user.role}/${user.id}`}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <User className="w-4 h-4" />
+                      Profile
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Logout
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-          
-          {/* Mobile menu button */}
+
           <div className="md:hidden flex items-center">
             <button
-              onClick={toggleMenu}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-primary-600 hover:bg-gray-50 focus:outline-none"
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              className="text-gray-600 hover:text-gray-900 p-2"
             >
-              {isMenuOpen ? (
-                <X className="block h-6 w-6" />
-              ) : (
-                <Menu className="block h-6 w-6" />
-              )}
+              {showMobileMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </div>
       </div>
-      
-      {/* Mobile menu */}
-      {isMenuOpen && (
-        <div className="md:hidden bg-white border-b border-gray-200 animate-fade-in">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            {user ? (
-              <>
-                <div className="flex items-center space-x-3 px-3 py-2">
-                  <Avatar
-                    src={user.avatarUrl}
-                    alt={user.name}
-                    size="sm"
-                    status={user.isOnline ? 'online' : 'offline'}
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{user.name}</p>
-                    <p className="text-xs text-gray-500 capitalize">{user.role}</p>
-                  </div>
-                </div>
-                
-                <div className="border-t border-gray-200 pt-2">
-                  {navLinks.map((link, index) => (
-                    <Link
-                      key={index}
-                      to={link.path}
-                      className="flex items-center px-3 py-2 text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 rounded-md"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <span className="mr-3">{link.icon}</span>
-                      {link.text}
-                    </Link>
-                  ))}
-                  
-                  <button
-                    onClick={() => {
-                      handleLogout();
-                      setIsMenuOpen(false);
-                    }}
-                    className="flex w-full items-center px-3 py-2 text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 rounded-md"
-                  >
-                    <LogOut size={18} className="mr-3" />
-                    Logout
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col space-y-2 px-3 py-2">
-                <Link 
-                  to="/login" 
-                  className="w-full"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <Button variant="outline" fullWidth>Log in</Button>
-                </Link>
-                <Link 
-                  to="/register" 
-                  className="w-full"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <Button fullWidth>Sign up</Button>
-                </Link>
+
+      {showMobileMenu && (
+        <div className="md:hidden border-t border-gray-200 bg-white">
+          <div className="px-4 py-3 space-y-2">
+            <Link
+              to={`/dashboard/${user.role}`}
+              className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+              onClick={() => setShowMobileMenu(false)}
+            >
+              <LayoutDashboard className="w-5 h-5" />
+              Dashboard
+            </Link>
+
+            <Link
+              to="/meetings"
+              className="flex items-center justify-between px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+              onClick={() => setShowMobileMenu(false)}
+            >
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Meetings
               </div>
+              {pendingMeetings > 0 && (
+                <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1">
+                  {pendingMeetings}
+                </span>
+              )}
+            </Link>
+
+            {user.role === 'investor' && (
+              <Link
+                to="/deals"
+                className="flex items-center justify-between px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                onClick={() => setShowMobileMenu(false)}
+              >
+                <div className="flex items-center gap-2">
+                  <Briefcase className="w-5 h-5" />
+                  Proposals
+                </div>
+                {pendingProposals > 0 && (
+                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1">
+                    {pendingProposals}
+                  </span>
+                )}
+              </Link>
             )}
+
+            <Link
+              to="/messages"
+              className="flex items-center justify-between px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+              onClick={() => setShowMobileMenu(false)}
+            >
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-5 h-5" />
+                Messages
+              </div>
+              {unreadMessages > 0 && (
+                <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1">
+                  {unreadMessages}
+                </span>
+              )}
+            </Link>
+
+            <Link
+              to="/notifications"
+              className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+              onClick={() => setShowMobileMenu(false)}
+            >
+              <Bell className="w-5 h-5" />
+              Notifications
+            </Link>
+
+            <Link
+              to={`/profile/${user.role}/${user.id}`}
+              className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+              onClick={() => setShowMobileMenu(false)}
+            >
+              <User className="w-5 h-5" />
+              Profile
+            </Link>
+
+            <button
+              onClick={() => {
+                setShowMobileMenu(false);
+                handleLogout();
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-gray-100 rounded-lg"
+            >
+              <LogOut className="w-5 h-5" />
+              Logout
+            </button>
           </div>
         </div>
       )}

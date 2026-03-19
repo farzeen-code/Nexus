@@ -63,5 +63,75 @@ export const userAPI = {
     return api.get(`/users/search?${params.toString()}`);
   }
 };
+export const meetingAPI = {
+  createMeeting: (data: {
+    requestedTo: string;
+    title: string;
+    description?: string;
+    scheduledDate: string;
+    duration?: number;
+    meetingType?: 'video' | 'phone' | 'in-person';
+    location?: string;
+  }) => api.post('/meetings', data),
+  
+  getUserMeetings: (params?: { status?: string; type?: string }) =>
+    api.get('/meetings', { params }),
+  
+  getMeetingById: (id: string) =>
+    api.get(`/meetings/${id}`),
+  
+  updateMeetingStatus: (id: string, status: 'accepted' | 'rejected' | 'cancelled', notes?: string) =>
+    api.put(`/meetings/${id}/status`, { status, notes }),
+  
+  updateMeeting: (id: string, data: any) =>
+    api.put(`/meetings/${id}`, data),
+  
+  deleteMeeting: (id: string) =>
+    api.delete(`/meetings/${id}`)
+};
+export const messageAPI = {
+  sendMessage: (data: {
+    receiver: string;
+    content: string;
+    messageType?: 'text' | 'file' | 'image';
+  }) => api.post('/messages', data),
+  
+  getConversation: (userId: string) =>
+    api.get(`/messages/${userId}`),
+  
+  getConversations: () =>
+    api.get('/messages/conversations'),
+  
+  markAsRead: (messageId: string) =>
+    api.put(`/messages/${messageId}/read`),
+  
+  getUnreadCount: () =>
+    api.get('/messages/unread-count')
+};
+
+export const collaborationAPI = {
+  createRequest: (data: {
+    investor: string;
+    title: string;
+    description: string;
+    requestedAmount: string;
+    equity?: string;
+    message?: string;
+  }) => api.post('/collaborations', data),
+  
+  getRequests: (params?: { type?: 'sent' | 'received'; status?: string }) =>
+    api.get('/collaborations', { params }),
+  
+  getRequestById: (id: string) =>
+    api.get(`/collaborations/${id}`),
+  
+  updateStatus: (id: string, status: 'accepted' | 'rejected' | 'under_review', message?: string) =>
+    api.put(`/collaborations/${id}/status`, { status, message }),
+  
+  deleteRequest: (id: string) =>
+    api.delete(`/collaborations/${id}`)
+};
+
+
 
 export default api;
