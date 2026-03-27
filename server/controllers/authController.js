@@ -1,5 +1,8 @@
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
+import { sendWelcomeEmail } from '../services/emailService.js';
+
+
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -14,20 +17,17 @@ const generateToken = (id) => {
 export const register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
-    
-    // Debug log
-    console.log('📝 Registration attempt:', { name, email, role });
 
-    // Validate input
+    console.log('📝 Registration attempt:', { name, email, role, hasPassword: !!password });
+
     if (!name || !email || !password || !role) {
-      console.log('❌ Missing fields');
+      console.log('❌ Missing fields:', { name: !!name, email: !!email, password: !!password, role: !!role });
       return res.status(400).json({
         success: false,
         message: 'Please provide all required fields'
       });
     }
 
-    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       console.log('❌ Email already exists:', email);
@@ -37,16 +37,6 @@ export const register = async (req, res) => {
       });
     }
 
-    // Validate role
-    if (!['investor', 'entrepreneur'].includes(role)) {
-      console.log('❌ Invalid role:', role);
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid role. Must be either investor or entrepreneur'
-      });
-    }
-
-    // Create user
     console.log('✅ Creating user...');
     const user = await User.create({
       name,
@@ -54,25 +44,28 @@ export const register = async (req, res) => {
       password,
       role
     });
+    await sendWelcomeEmail(user.email, user.name);
+
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    const publicProfile = user.getPublicProfile();
 
     console.log('✅ User created:', user._id);
 
-    // Generate token
-    const token = generateToken(user._id);
-
     res.status(201).json({
       success: true,
-      message: 'Account created successfully!',
-      token,
-      user: user.getPublicProfile()
+      message: 'User registered successfully',
+      data: {
+        token,
+        user: publicProfile
+      }
     });
   } catch (error) {
-    // Detailed error logging
     console.error('❌ Registration error:', error);
-    console.error('Error name:', error.name);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    
     res.status(500).json({
       success: false,
       message: 'Registration failed',
@@ -86,35 +79,29 @@ export const register = async (req, res) => {
 // @access  Public
 export const login = async (req, res) => {
   try {
-    const { email, password, role } = req.body;
+    const { email, password } = req.body;
 
-    // Debug log
-    console.log('🔐 Login attempt:', { email, role });
+    console.log('🔐 Login attempt:', { email, hasPassword: !!password });
 
-    // Validate input
-    if (!email || !password || !role) {
-      console.log('❌ Missing fields');
+    if (!email || !password) {
+      console.log('❌ Missing fields:', { email: !!email, password: !!password });
       return res.status(400).json({
         success: false,
-        message: 'Please provide email, password, and role'
+        message: 'Please provide email and password'
       });
     }
 
-    // Find user and include password
-    const user = await User.findOne({ email, role }).select('+password');
-
+    const user = await User.findOne({ email }).select('+password');
     if (!user) {
-      console.log('❌ User not found:', email, role);
+      console.log('❌ User not found:', email);
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials or user not found'
+        message: 'Invalid credentials'
       });
     }
 
-    // Check password
-    const isPasswordCorrect = await user.comparePassword(password);
-
-    if (!isPasswordCorrect) {
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
       console.log('❌ Invalid password for:', email);
       return res.status(401).json({
         success: false,
@@ -122,26 +109,26 @@ export const login = async (req, res) => {
       });
     }
 
-    // Update online status
-    user.isOnline = true;
-    user.lastSeen = new Date();
-    await user.save();
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
-    // Generate token
-    const token = generateToken(user._id);
+    const publicProfile = user.getPublicProfile();
 
     console.log('✅ Login successful:', user._id);
 
     res.status(200).json({
       success: true,
-      message: 'Successfully logged in!',
-      token,
-      user: user.getPublicProfile()
+      message: 'Login successful',
+      data: {
+        token,
+        user: publicProfile
+      }
     });
   } catch (error) {
     console.error('❌ Login error:', error);
-    console.error('Error message:', error.message);
-    
     res.status(500).json({
       success: false,
       message: 'Login failed',
@@ -184,45 +171,52 @@ export const getCurrentUser = async (req, res) => {
 // @access  Private
 export const updateProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-
-    // Common fields that can be updated
-    const commonUpdates = ['name', 'bio', 'location', 'avatarUrl'];
+    console.log('📝 Profile update request:', req.body);
     
-    // Role-specific fields
-    const entrepreneurUpdates = ['startupName', 'pitchSummary', 'fundingNeeded', 'industry', 'foundedYear', 'teamSize'];
-    const investorUpdates = ['investmentInterests', 'investmentStage', 'portfolioCompanies', 'totalInvestments', 'minimumInvestment', 'maximumInvestment'];
+    const updates = req.body;
+    const allowedUpdates = [
+      'name', 'bio', 'location', 'avatarUrl',
+      'startupName', 'pitchSummary', 'fundingNeeded', 'industry', 'foundedYear', 'teamSize',
+      'investmentInterests', 'investmentStage', 'portfolioCompanies', 
+      'totalInvestments', 'minimumInvestment', 'maximumInvestment'
+    ];
 
-    // Determine allowed updates based on role
-    let allowedUpdates = [...commonUpdates];
-    if (user.role === 'entrepreneur') {
-      allowedUpdates = [...allowedUpdates, ...entrepreneurUpdates];
-    } else if (user.role === 'investor') {
-      allowedUpdates = [...allowedUpdates, ...investorUpdates];
-    }
-
-    // Apply updates
-    Object.keys(req.body).forEach(key => {
-      if (allowedUpdates.includes(key)) {
-        user[key] = req.body[key];
+    const filteredUpdates = {};
+    Object.keys(updates).forEach(key => {
+      if (allowedUpdates.includes(key) && updates[key] !== undefined && updates[key] !== null) {
+        filteredUpdates[key] = updates[key];
       }
     });
 
-    await user.save();
+    console.log('✅ Filtered updates:', filteredUpdates);
 
-    console.log('✅ Profile updated:', user._id);
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: filteredUpdates },
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const publicProfile = user.getPublicProfile();
+
+    console.log('✅ Profile updated successfully:', user._id);
 
     res.status(200).json({
       success: true,
       message: 'Profile updated successfully',
-      user: user.getPublicProfile()
+      data: publicProfile
     });
   } catch (error) {
     console.error('❌ Update profile error:', error);
-    
     res.status(500).json({
       success: false,
-      message: 'Profile update failed',
+      message: 'Failed to update profile',
       error: error.message
     });
   }

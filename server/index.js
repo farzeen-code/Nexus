@@ -5,6 +5,25 @@ import dotenv from 'dotenv';
 import meetingRoutes from './routes/meetingRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
 import collaborationRoutes from './routes/collaborationRoutes.js';
+import documentRoutes from './routes/documentRoutes.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+import paymentRoutes from './routes/paymentRoutes.js';
+
+
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+
+
+
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 
 dotenv.config();
@@ -59,6 +78,24 @@ app.use((req, res, next) => {
 // Import Routes
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import rateLimit from 'express-rate-limit';
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: 'Too many requests, please try again later.'
+});
+
+app.use('/api/', limiter);
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: 'Too many login attempts, please try again later.'
+});
+
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 
 // Use Routes
 app.use('/api/auth', authRoutes);
@@ -66,6 +103,9 @@ app.use('/api/users', userRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/collaborations', collaborationRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api/payments', paymentRoutes);
 
 
 // Test Route

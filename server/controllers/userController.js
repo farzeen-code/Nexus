@@ -119,3 +119,47 @@ export const searchUsers = async (req, res) => {
     });
   }
 };
+export const searchUsersAdvanced = async (req, res) => {
+  try {
+    const { 
+      query, 
+      role, 
+      industry, 
+      location, 
+      minInvestment, 
+      maxInvestment,
+      investmentStage 
+    } = req.query;
+
+    let searchQuery = {};
+
+    if (query) {
+      searchQuery.$or = [
+        { name: { $regex: query, $options: 'i' } },
+        { bio: { $regex: query, $options: 'i' } },
+        { startupName: { $regex: query, $options: 'i' } }
+      ];
+    }
+
+    if (role) searchQuery.role = role;
+    if (industry) searchQuery.industry = { $regex: industry, $options: 'i' };
+    if (location) searchQuery.location = { $regex: location, $options: 'i' };
+    if (investmentStage) searchQuery.investmentStage = investmentStage;
+
+    const users = await User.find(searchQuery).select('-password').limit(50);
+
+    const publicProfiles = users.map(user => user.getPublicProfile());
+
+    res.status(200).json({
+      success: true,
+      count: publicProfiles.length,
+      data: publicProfiles
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Search failed',
+      error: error.message
+    });
+  }
+};

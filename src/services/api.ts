@@ -1,16 +1,14 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Create axios instance
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: API_URL,
   headers: {
-    'Content-Type': 'application/json',
-  },
+    'Content-Type': 'application/json'
+  }
 });
 
-// Add token to requests if available
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('nexus_token');
@@ -24,45 +22,23 @@ api.interceptors.request.use(
   }
 );
 
-// Auth APIs
 export const authAPI = {
-  register: (data: { name: string; email: string; password: string; role: string }) =>
-    api.post('/auth/register', data),
-  
-  login: (data: { email: string; password: string; role: string }) =>
-    api.post('/auth/login', data),
-  
-  getCurrentUser: () =>
-    api.get('/auth/me'),
-  
-  updateProfile: (data: any) =>
-    api.put('/auth/profile', data),
-  
-  logout: () =>
-    api.post('/auth/logout'),
-  
-  forgotPassword: (email: string) =>
-    api.post('/auth/forgot-password', { email }),
+  register: (data: any) => api.post('/auth/register', data),
+  login: (data: any) => api.post('/auth/login', data),
+  getCurrentUser: () => api.get('/auth/me'),
+  updateProfile: (data: any) => api.put('/auth/profile', data),
+  logout: () => api.post('/auth/logout'),
+  forgotPassword: (email: string) => api.post('/auth/forgot-password', { email })
 };
 
-// User APIs
 export const userAPI = {
-  getAllEntrepreneurs: () =>
-    api.get('/users/entrepreneurs'),
-  
-  getAllInvestors: () =>
-    api.get('/users/investors'),
-  
-  getUserById: (id: string) =>
-    api.get(`/users/${id}`),
-  
-  searchUsers: (query: string, role?: string) => {
-    const params = new URLSearchParams();
-    if (query) params.append('q', query);
-    if (role) params.append('role', role);
-    return api.get(`/users/search?${params.toString()}`);
-  }
+  getAllEntrepreneurs: () => api.get('/users/entrepreneurs'),
+  getAllInvestors: () => api.get('/users/investors'),
+  getUserById: (id: string) => api.get(`/users/${id}`),
+  searchUsers: (query: string, role?: string) => 
+    api.get('/users/search', { params: { q: query, role } })
 };
+
 export const meetingAPI = {
   createMeeting: (data: {
     requestedTo: string;
@@ -89,6 +65,7 @@ export const meetingAPI = {
   deleteMeeting: (id: string) =>
     api.delete(`/meetings/${id}`)
 };
+
 export const messageAPI = {
   sendMessage: (data: {
     receiver: string;
@@ -131,7 +108,23 @@ export const collaborationAPI = {
   deleteRequest: (id: string) =>
     api.delete(`/collaborations/${id}`)
 };
-
-
+export const documentAPI = {
+  uploadDocument: (formData: FormData) => 
+    api.post('/documents/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+  
+  getUserDocuments: () => api.get('/documents'),
+  
+  signDocument: (id: string, signatureData: string) =>
+    api.put(`/documents/${id}/sign`, { signatureData }),
+  
+  deleteDocument: (id: string) => api.delete(`/documents/${id}`)
+};
+export const paymentAPI = {
+  createTransaction: (data: any) => api.post('/payments/transaction', data),
+  getTransactions: () => api.get('/payments/transactions'),
+  getBalance: () => api.get('/payments/balance')
+};
 
 export default api;

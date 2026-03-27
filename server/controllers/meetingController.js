@@ -1,5 +1,6 @@
 import Meeting from '../models/Meeting.js';
 import User from '../models/User.js';
+import { sendMeetingNotification } from '../services/emailService.js';
 
 // @desc    Create meeting request
 // @route   POST /api/meetings
@@ -25,17 +26,49 @@ export const createMeeting = async (req, res) => {
       });
     }
 
+    // Convert scheduledDate to Date object
+    const scheduledDateObj = new Date(scheduledDate);
+    const endTime = new Date(scheduledDateObj.getTime() + (duration * 60000));
+
+    const existingMeetings = await Meeting.find({
+      $or: [
+        { requestedBy: req.user.id },
+        { requestedTo: requestedTo }
+      ],
+      status: { $in: ['pending', 'accepted'] },
+      scheduledDate: {
+        $gte: new Date(scheduledDateObj.getTime() - (60 * 60000)),
+        $lte: new Date(scheduledDateObj.getTime() + (60 * 60000))
+      }
+    });
+
+    if (existingMeetings.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Time slot conflict detected. Please choose a different time.',
+        conflicts: existingMeetings
+      });
+    }
+
     // Create meeting
     const meeting = await Meeting.create({
       requestedBy: req.user.id,
       requestedTo,
       title,
       description,
-      scheduledDate,
+      scheduledDate: scheduledDateObj,
       duration: duration || 30,
       meetingType: meetingType || 'video',
       location
     });
+
+    if (recipient.email) {
+      await sendMeetingNotification(recipient.email, {
+        title: meeting.title,
+        scheduledDate: meeting.scheduledDate,
+        duration: meeting.duration
+      });
+    }
 
     // Populate user details
     const populatedMeeting = await Meeting.findById(meeting._id)
@@ -49,6 +82,7 @@ export const createMeeting = async (req, res) => {
       message: 'Meeting request sent successfully',
       data: populatedMeeting
     });
+
   } catch (error) {
     console.error('❌ Create meeting error:', error);
     res.status(500).json({
@@ -122,8 +156,8 @@ export const getMeetingById = async (req, res) => {
     }
 
     // Check if user is part of this meeting
-    if (meeting.requestedBy._id.toString() !== req.user.id && 
-        meeting.requestedTo._id.toString() !== req.user.id) {
+    if (meeting.requestedBy._id.toString() !== req.user.id &&
+      meeting.requestedTo._id.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to view this meeting'
@@ -175,8 +209,8 @@ export const updateMeetingStatus = async (req, res) => {
       });
     }
 
-    if ((status === 'accepted' || status === 'rejected') && 
-        meeting.requestedTo.toString() !== req.user.id) {
+    if ((status === 'accepted' || status === 'rejected') &&
+      meeting.requestedTo.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Only the meeting recipient can accept or reject'
@@ -239,7 +273,7 @@ export const updateMeeting = async (req, res) => {
     }
 
     const allowedUpdates = ['title', 'description', 'scheduledDate', 'duration', 'meetingType', 'location'];
-    
+
     allowedUpdates.forEach(field => {
       if (req.body[field] !== undefined) {
         meeting[field] = req.body[field];

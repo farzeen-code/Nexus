@@ -1,5 +1,7 @@
 import CollaborationRequest from '../models/CollaborationRequest.js';
 import User from '../models/User.js';
+import { sendCollaborationNotification } from '../services/emailService.js';
+
 
 export const createCollaborationRequest = async (req, res) => {
   try {
@@ -36,7 +38,15 @@ export const createCollaborationRequest = async (req, res) => {
       equity,
       message
     });
+    
 
+    
+    if (investorUser.email) {
+      await sendCollaborationNotification(investorUser.email, {
+        title: collaboration.title,
+        requestedAmount: collaboration.requestedAmount
+      });
+    }
     const populatedCollaboration = await CollaborationRequest.findById(collaboration._id)
       .populate('entrepreneur', 'name email avatarUrl role startupName')
       .populate('investor', 'name email avatarUrl role');
@@ -112,8 +122,8 @@ export const getCollaborationById = async (req, res) => {
       });
     }
 
-    if (collaboration.entrepreneur._id.toString() !== req.user.id && 
-        collaboration.investor._id.toString() !== req.user.id) {
+    if (collaboration.entrepreneur._id.toString() !== req.user.id &&
+      collaboration.investor._id.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to view this collaboration request'

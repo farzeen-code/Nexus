@@ -3,7 +3,8 @@ import {
   getAllEntrepreneurs,
   getAllInvestors,
   getUserById,
-  searchUsers
+  searchUsers,
+  searchUsersAdvanced
 } from '../controllers/userController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -17,5 +18,6 @@ router.get('/entrepreneurs', getAllEntrepreneurs);
 router.get('/investors', getAllInvestors);
 router.get('/search', searchUsers);
 router.get('/:id', getUserById);
+router.get('/search/advanced', protect, searchUsersAdvanced);
 
 export default router;
